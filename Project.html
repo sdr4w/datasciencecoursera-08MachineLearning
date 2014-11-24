@@ -73,16 +73,16 @@ code > span.er { font-weight: bold; }
 <ul>
 <li><a href="#executive-summary">Executive Summary</a></li>
 <li><a href="#reproducible-environment">Reproducible Environment</a></li>
-<li><a href="#data">Data</a></li>
 <li><a href="#data-preparation">Data Preparation</a></li>
-<li><a href="#model">Model</a></li>
-<li><a href="#conclusion">Conclusion</a></li>
+<li><a href="#models">Models</a></li>
+<li><a href="#cross-validation">Cross-Validation</a></li>
+<li><a href="#appendix">Appendix</a></li>
 </ul>
 </div>
 
 <div id="executive-summary" class="section level2">
 <h2>Executive Summary</h2>
-<p>You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did.</p>
+<p>The best prediction model was built when using the “kth nearest neighbor” method to train the model. Up to 93% accuracy was achieved on the training data.</p>
 </div>
 <div id="reproducible-environment" class="section level2">
 <h2>Reproducible Environment</h2>
@@ -93,19 +93,16 @@ code > span.er { font-weight: bold; }
 <span class="kw">library</span>(caret);
 <span class="kw">library</span>(rpart);
 <span class="kw">library</span>(rpart.plot);
-<span class="kw">library</span>(randomForest);</code></pre>
-<pre><code>## randomForest 4.6-10
-## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(rattle);</code></pre>
+<span class="kw">library</span>(rattle);</code></pre>
 <pre><code>## Rattle: A free graphical interface for data mining with R.
 ## Version 3.3.0 Copyright (c) 2006-2014 Togaware Pty Ltd.
 ## Type 'rattle()' to shake, rattle, and roll your data.</code></pre>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Define seed to reproduce &quot;randomness&quot;</span>
 <span class="kw">set.seed</span>(<span class="dv">1989</span>);  </code></pre>
 </div>
-<div id="data" class="section level2">
-<h2>Data</h2>
-<p>Test subjects were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <a href="http://groupware.les.inf.puc-rio.br/har">More Info</a> (see the section on the Weight Lifting Exercise Dataset). The training data for this project are available here:<br /><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">Training Data Link</a><br />The test data are available here:<br /><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv">Testing Data Link</a><br />Important: you are free to use this dataset for any purpose. This dataset is licensed under the Creative Commons license (CC BY-SA). The CC BY-SA license means you can remix, tweak, and build upon this work even for commercial purposes, as long as you credit the authors of the original work and you license your new creations under the identical terms we are licensing to you. This license is often compared to “copyleft” free and open source software licenses. All new works based on this dataset will carry the same license, so any derivatives will also allow commercial use.</p>
+<div id="data-preparation" class="section level2">
+<h2>Data Preparation</h2>
+<p>Test subjects were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <a href="http://groupware.les.inf.puc-rio.br/har">More Info</a> (see the section on the Weight Lifting Exercise Dataset). The training data for this project are available here:<br /><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv">Training Data Link</a><br />The test data are available here:<br /><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv">Testing Data Link</a><br /><em>Important</em>: you are free to use this dataset for any purpose. This dataset is licensed under the Creative Commons license (CC BY-SA). The CC BY-SA license means you can remix, tweak, and build upon this work even for commercial purposes, as long as you credit the authors of the original work and you license your new creations under the identical terms we are licensing to you. This license is often compared to “copyleft” free and open source software licenses. All new works based on this dataset will carry the same license, so any derivatives will also allow commercial use.</p>
 <p><cite>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13) . Stuttgart, Germany: ACM SIGCHI, 2013.</cite></p>
 <p>Read in test and training data.</p>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Read in raw training and testing data</span>
@@ -113,9 +110,8 @@ testing &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span cla
 training &lt;-<span class="st"> </span><span class="kw">read.csv</span>(<span class="st">&quot;data/pml-training.csv&quot;</span>, <span class="dt">header =</span> <span class="ot">TRUE</span>)
 <span class="kw">dim</span>(training)</code></pre>
 <pre><code>## [1] 19622   160</code></pre>
-</div>
-<div id="data-preparation" class="section level2">
-<h2>Data Preparation</h2>
+<div id="discard-useless-predictors" class="section level3">
+<h3>Discard Useless Predictors</h3>
 <p>Not all of the 160 variables in the training dataset will be used as predictors for the prediction model. Variables where the majority of its values are labeled as NA (missing) will be excluded. Also excluded, will be variables that are associated with the test subject’s identity and variables related to date/time.</p>
 <pre class="sourceCode r"><code class="sourceCode r"><span class="co"># Define array with names of useless variables</span>
 drops &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;amplitude_pitch_arm&quot;</span>, <span class="st">&quot;amplitude_pitch_belt&quot;</span>, <span class="st">&quot;amplitude_pitch_dumbbell&quot;</span>, 
@@ -128,62 +124,87 @@ drops &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&
     <span class="st">&quot;max_picth_forearm&quot;</span>, <span class="st">&quot;max_roll_arm&quot;</span>, <span class="st">&quot;max_roll_belt&quot;</span>, <span class="st">&quot;max_roll_dumbbell&quot;</span>, 
     <span class="st">&quot;max_roll_forearm&quot;</span>, <span class="st">&quot;max_yaw_arm&quot;</span>, <span class="st">&quot;min_pitch_arm&quot;</span>, <span class="st">&quot;min_pitch_belt&quot;</span>, <span class="st">&quot;min_pitch_dumbbell&quot;</span>, 
     <span class="st">&quot;min_pitch_forearm&quot;</span>, <span class="st">&quot;min_roll_arm&quot;</span>, <span class="st">&quot;min_roll_belt&quot;</span>, <span class="st">&quot;min_roll_dumbbell&quot;</span>, 
-    <span class="st">&quot;min_roll_forearm&quot;</span>, <span class="st">&quot;min_yaw_arm&quot;</span>, <span class="st">&quot;raw_timestamp_part_1&quot;</span>, <span class="st">&quot;raw_timestamp_part_2&quot;</span>, 
-    <span class="st">&quot;stddev_pitch_arm&quot;</span>, <span class="st">&quot;stddev_pitch_belt&quot;</span>, <span class="st">&quot;stddev_pitch_dumbbell&quot;</span>, <span class="st">&quot;stddev_pitch_forearm&quot;</span>, 
-    <span class="st">&quot;stddev_roll_arm&quot;</span>, <span class="st">&quot;stddev_roll_belt&quot;</span>, <span class="st">&quot;stddev_roll_dumbbell&quot;</span>, <span class="st">&quot;stddev_roll_forearm&quot;</span>, 
-    <span class="st">&quot;stddev_yaw_arm&quot;</span>, <span class="st">&quot;stddev_yaw_belt&quot;</span>, <span class="st">&quot;stddev_yaw_dumbbell&quot;</span>, <span class="st">&quot;stddev_yaw_forearm&quot;</span>, 
-    <span class="st">&quot;user_name&quot;</span>, <span class="st">&quot;var_accel_arm&quot;</span>, <span class="st">&quot;var_accel_dumbbell&quot;</span>, <span class="st">&quot;var_accel_forearm&quot;</span>, 
-    <span class="st">&quot;var_pitch_arm&quot;</span>, <span class="st">&quot;var_pitch_belt&quot;</span>, <span class="st">&quot;var_pitch_dumbbell&quot;</span>, <span class="st">&quot;var_pitch_forearm&quot;</span>, 
-    <span class="st">&quot;var_roll_arm&quot;</span>, <span class="st">&quot;var_roll_belt&quot;</span>, <span class="st">&quot;var_roll_dumbbell&quot;</span>, <span class="st">&quot;var_roll_forearm&quot;</span>, 
-    <span class="st">&quot;var_total_accel_belt&quot;</span>, <span class="st">&quot;var_yaw_arm&quot;</span>, <span class="st">&quot;var_yaw_belt&quot;</span>, <span class="st">&quot;var_yaw_dumbbell&quot;</span>, 
-    <span class="st">&quot;var_yaw_forearm&quot;</span>, <span class="st">&quot;X&quot;</span>)
+    <span class="st">&quot;min_roll_forearm&quot;</span>, <span class="st">&quot;min_yaw_arm&quot;</span>, <span class="st">&quot;num_window&quot;</span>, <span class="st">&quot;raw_timestamp_part_1&quot;</span>, 
+    <span class="st">&quot;raw_timestamp_part_2&quot;</span>, <span class="st">&quot;stddev_pitch_arm&quot;</span>, <span class="st">&quot;stddev_pitch_belt&quot;</span>, <span class="st">&quot;stddev_pitch_dumbbell&quot;</span>, 
+    <span class="st">&quot;stddev_pitch_forearm&quot;</span>, <span class="st">&quot;stddev_roll_arm&quot;</span>, <span class="st">&quot;stddev_roll_belt&quot;</span>, <span class="st">&quot;stddev_roll_dumbbell&quot;</span>, 
+    <span class="st">&quot;stddev_roll_forearm&quot;</span>, <span class="st">&quot;stddev_yaw_arm&quot;</span>, <span class="st">&quot;stddev_yaw_belt&quot;</span>, <span class="st">&quot;stddev_yaw_dumbbell&quot;</span>, 
+    <span class="st">&quot;stddev_yaw_forearm&quot;</span>, <span class="st">&quot;user_name&quot;</span>, <span class="st">&quot;var_accel_arm&quot;</span>, <span class="st">&quot;var_accel_dumbbell&quot;</span>, 
+    <span class="st">&quot;var_accel_forearm&quot;</span>, <span class="st">&quot;var_pitch_arm&quot;</span>, <span class="st">&quot;var_pitch_belt&quot;</span>, <span class="st">&quot;var_pitch_dumbbell&quot;</span>, 
+    <span class="st">&quot;var_pitch_forearm&quot;</span>, <span class="st">&quot;var_roll_arm&quot;</span>, <span class="st">&quot;var_roll_belt&quot;</span>, <span class="st">&quot;var_roll_dumbbell&quot;</span>, 
+    <span class="st">&quot;var_roll_forearm&quot;</span>, <span class="st">&quot;var_total_accel_belt&quot;</span>, <span class="st">&quot;var_yaw_arm&quot;</span>, <span class="st">&quot;var_yaw_belt&quot;</span>, 
+    <span class="st">&quot;var_yaw_dumbbell&quot;</span>, <span class="st">&quot;var_yaw_forearm&quot;</span>, <span class="st">&quot;X&quot;</span>)
 <span class="co"># Filter out useless variables</span>
 training.filt &lt;-<span class="st"> </span>training[, !(<span class="kw">names</span>(training) %in%<span class="st"> </span>drops)]
-testing.filt &lt;-<span class="st"> </span>testing[, !(<span class="kw">names</span>(training) %in%<span class="st"> </span>drops)]
 <span class="kw">dim</span>(training.filt)</code></pre>
-<pre><code>## [1] 19622    88</code></pre>
-<p>By removing these variables, the number of possible predictors to sort through is 87.</p>
-<div id="zero-or-near-zero-variance-predictors" class="section level3">
-<h3>Zero or Near Zero Variance Predictors</h3>
+<pre><code>## [1] 19622    87</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">rm</span>(drops)</code></pre>
+<p>By removing these variables, the number of possible predictors to sort through is 86.</p>
+</div>
+<div id="discard-zero-or-near-zero-variance-predictors" class="section level3">
+<h3>Discard Zero or Near Zero Variance Predictors</h3>
 <p>Create subset of training data that removes variables whose variance are small.</p>
-<pre class="sourceCode r"><code class="sourceCode r">nzv &lt;-<span class="st"> </span><span class="kw">nearZeroVar</span>(training.filt)
-training.filt &lt;-<span class="st"> </span>training.filt[, -nzv]
-testing.filt &lt;-<span class="st"> </span>testing.filt[, -nzv]
-<span class="kw">dim</span>(training.filt)</code></pre>
-<pre><code>## [1] 19622    54</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r">nzv &lt;-<span class="st"> </span><span class="kw">nearZeroVar</span>(training.filt[, !(<span class="kw">names</span>(training.filt) %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;classe&quot;</span>))])
+training.nzv &lt;-<span class="st"> </span>training.filt[, -nzv]
+<span class="kw">dim</span>(training.nzv)</code></pre>
+<pre><code>## [1] 19622    53</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">rm</span>(nzv)</code></pre>
 </div>
-<div id="correated-predictors" class="section level3">
-<h3>Correated Predictors</h3>
+<div id="discard-highly-correlated-predictors" class="section level3">
+<h3>Discard Highly Correlated Predictors</h3>
 <p>Reduce the level of correlation between the predictors. The code chunk below shows the effect of removing descriptors with absolute correlations above 0.75.</p>
-<pre class="sourceCode r"><code class="sourceCode r">corr &lt;-<span class="st"> </span><span class="kw">findCorrelation</span>(<span class="kw">cor</span>(training.filt[, <span class="dv">1</span>:<span class="dv">53</span>]), <span class="dt">cutoff =</span> <span class="fl">0.75</span>)
-training.filt &lt;-<span class="st"> </span>training.filt[, -corr]
-testing.filt &lt;-<span class="st"> </span>testing.filt[, -corr]
-<span class="kw">dim</span>(training.filt)</code></pre>
-<pre><code>## [1] 19622    34</code></pre>
-<p>The number of possible predictors are now at 33. This will be the final set of predictors used to build the eventual prediction model.</p>
+<pre class="sourceCode r"><code class="sourceCode r">corr &lt;-<span class="st"> </span><span class="kw">cor</span>(training.nzv[, !(<span class="kw">names</span>(training.nzv) %in%<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;classe&quot;</span>))])
+training.corr75 &lt;-<span class="st"> </span>training.nzv[, -<span class="kw">findCorrelation</span>(corr, <span class="dt">cutoff =</span> <span class="fl">0.75</span>)]
+training.corr50 &lt;-<span class="st"> </span>training.nzv[, -<span class="kw">findCorrelation</span>(corr, <span class="dt">cutoff =</span> <span class="fl">0.5</span>)]
+<span class="kw">dim</span>(training.corr75)</code></pre>
+<pre><code>## [1] 19622    33</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">dim</span>(training.corr50)</code></pre>
+<pre><code>## [1] 19622    22</code></pre>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="kw">rm</span>(corr)</code></pre>
+<p>The number of possible predictors are now at 86. This will be the final set of predictors used to build the eventual prediction model.</p>
 </div>
 </div>
-<div id="model" class="section level2">
-<h2>Model</h2>
-<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># fancyRpartPlot(model3$finalModel);</span>
+<div id="models" class="section level2">
+<h2>Models</h2>
+<p><em>caret</em> has a function called <em>train</em> for use over 147 models with different resampling methods. Using the training data to build 3 prediction models with the <em>train</em> function. The performance of each will be evaluated. Only 3 models were built because The computing/memory capacity of the system used to perform this analysis limits the scope of the models that can be reasonably calculated. The 3 models built were:</p>
+<ol style="list-style-type: decimal">
+<li>Kth Nearest Neigbhor</li>
+<li>Neural Network</li>
+<li>Tree Partition</li>
+</ol>
+<div id="classification-performance" class="section level3">
+<h3>Classification Performance</h3>
+<p>Display the “confusion matrix” for each of the created models. A “confusion matrix” is a cross–tabulation of the observed and predicted classes. The higher the sum of the values across the table’s diagonal then the better that overall model’s overall classification performance.</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># confusionMatrix(model1); confusionMatrix(model2); confusionMatrix(model3);</span></code></pre>
+</div>
+<div id="prediction-on-testing-dataset" class="section level3">
+<h3>Prediction on Testing Dataset</h3>
+<p>Apply models against the testing dataset.</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># pred1 &lt;- predict(model1,newdata=testing); pred2 &lt;-</span>
+<span class="co"># predict(model2,newdata=testing); pred3 &lt;- predict(model3,newdata=testing);</span></code></pre>
+</div>
+</div>
+<div id="cross-validation" class="section level2">
+<h2>Cross-Validation</h2>
+<p>K–Nearest Neighbors method incorporates croos validation over bootstrapped samples.</p>
+<div id="assignment-writeup" class="section level3">
+<h3>Assignment Writeup</h3>
+<p>Apply the best machine learning model built to each of the 20 test cases in the testing data set. For each test case create a text file with a single capital letter (A, B, C, D, or E) corresponding to the prediction for the corresponding problem in the test data set.</p>
+<pre class="sourceCode r"><code class="sourceCode r">pml_write_files =<span class="st"> </span>function(x) {
+    n =<span class="st"> </span><span class="kw">length</span>(x)
+    for (i in <span class="dv">1</span>:n) {
+        filename =<span class="st"> </span><span class="kw">paste0</span>(<span class="st">&quot;text/problem_id_&quot;</span>, i, <span class="st">&quot;.txt&quot;</span>)
+        <span class="kw">write.table</span>(x[i], <span class="dt">file =</span> filename, <span class="dt">quote =</span> <span class="ot">FALSE</span>, <span class="dt">row.names =</span> <span class="ot">FALSE</span>, 
+            <span class="dt">col.names =</span> <span class="ot">FALSE</span>)
+    }
+}
 
-<span class="co"># confusionMatrix(model1); confusionMatrix(model2); confusionMatrix(model3);</span>
-<span class="co"># confusionMatrix(model4); confusionMatrix(model5);</span>
-
-<span class="co"># pred1 &lt;- predict(model1,newdata=testing.filt); pred2 &lt;-</span>
-<span class="co"># predict(model2,newdata=testing.filt); pred3 &lt;-</span>
-<span class="co"># predict(model3,newdata=testing.filt); pred4 &lt;-</span>
-<span class="co"># predict(model4,newdata=testing.filt); pred5 &lt;-</span>
-<span class="co"># predict(model5,newdata=testing.filt);</span></code></pre>
-<div id="cross-validation" class="section level3">
-<h3>Cross-Validation</h3>
-</div>
-<div id="out-of-sample-error" class="section level3">
-<h3>Out of Sample Error</h3>
+<span class="co"># pml_write_files(as.character(pred1));</span></code></pre>
 </div>
 </div>
-<div id="conclusion" class="section level2">
-<h2>Conclusion</h2>
+<div id="appendix" class="section level2">
+<h2>Appendix</h2>
+<p>Plot of</p>
+<pre class="sourceCode r"><code class="sourceCode r"><span class="co"># fancyRpartPlot(model3$finalModel);</span></code></pre>
 </div>
 
 

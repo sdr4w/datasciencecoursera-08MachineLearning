@@ -119,7 +119,7 @@ _caret_ has a function called _train_ for use over 147 models with different res
 3. Tree Partition
 
 ```{r models, tidy=TRUE, echo=FALSE}
-model1 <- train(classe~.,training.corr50,method="knn",  preProcess=c("center","scale")); 
+#model1 <- train(classe~.,training.corr50,method="knn",  preProcess=c("center","scale")); 
 #model2 <- train(classe~.,training.corr75,method="nnet", preProcess=c("center","scale")); 
 #model3 <- train(classe~.,training.corr50,method="rpart",preProcess=c("center","scale")); 
 ```
@@ -128,7 +128,7 @@ model1 <- train(classe~.,training.corr50,method="knn",  preProcess=c("center","s
 Display the "confusion matrix" for each of the created models.  A “confusion matrix” is a cross–tabulation of the observed and predicted classes. The higher the sum of the values across the table's diagonal then the better that overall model's overall classification performance. 
 
 ```{r classPerf, tidy=TRUE}
-confusionMatrix(model1);
+#confusionMatrix(model1);
 #confusionMatrix(model2);
 #confusionMatrix(model3);
 ```
@@ -137,7 +137,7 @@ confusionMatrix(model1);
 Apply models against the testing dataset.
 
 ```{r prediction, tidy=TRUE}
-pred1 <- predict(model1,newdata=testing);
+#pred1 <- predict(model1,newdata=testing);
 #pred2 <- predict(model2,newdata=testing);
 #pred3 <- predict(model3,newdata=testing);
 ```
