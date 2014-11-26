@@ -11,7 +11,7 @@ output:
     toc_depth: 2 
     fig_width: 7
     fig_height: 6
-    fig_caption: true
+    fig_caption: false
 ---
 ## Executive Summary
 The best prediction model was built when using the "kth nearest neighbor" method to train the model. Up to 93% accuracy was achieved on the training data.  
@@ -19,11 +19,12 @@ The best prediction model was built when using the "kth nearest neighbor" method
 ## Reproducible Environment
 The following chunk of code loads the libraries used in the analysis of the data.  Also, by setting a seed to a fixed value, will guarantee that the all the code in this report will produce the same results as another person running the code.
 
-```{r setup_environment}
+```{r setup_environment, cache=TRUE}
 # Load needed libraries
 library(ggplot2);
 library(lattice);
 library(caret);
+library(nnet);
 library(rpart);
 library(rpart.plot);
 library(rattle);
@@ -32,27 +33,37 @@ library(rattle);
 set.seed(1989);  
 ``` 
 
-## Data Preparation
-Test subjects were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [More Info](http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
-The training data for this project are available here:  
-[Training Data Link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)  
+## Data 
+The data contain features of test subjects who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [More Info](http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
+
+The training data for this project are available here:
+
+     [Training Data Link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)  
+
 The test data are available here:  
-[Testing Data Link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)  
-_Important_: you are free to use this dataset for any purpose. This dataset is licensed under the Creative Commons license (CC BY-SA). The CC BY-SA license means you can remix, tweak, and build upon this work even for commercial purposes, as long as you credit the authors of the original work and you license your new creations under the identical terms we are licensing to you. This license is often compared to "copyleft" free and open source software licenses. All new works based on this dataset will carry the same license, so any derivatives will also allow commercial use.
+
+     [Testing Data Link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)  
+
+### Credit
+
+__Important__: you are free to use this dataset for any purpose. This dataset is licensed under the Creative Commons license (CC BY-SA). The CC BY-SA license means you can remix, tweak, and build upon this work even for commercial purposes, as long as you credit the authors of the original work and you license your new creations under the identical terms we are licensing to you. This license is often compared to "copyleft" free and open source software licenses. All new works based on this dataset will carry the same license, so any derivatives will also allow commercial use.
 
 <cite>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.</cite>
 
+### Load data
+
 Read in test and training data.
-```{r raw_data, tidy=TRUE}
+```{r raw_data, tidy=TRUE, cache=TRUE}
 # Read in raw training and testing data
 testing  <- read.csv("data/pml-testing.csv",  header=TRUE);
 training <- read.csv("data/pml-training.csv", header=TRUE);
 dim(training);
 ``` 
+Data set contains 159 predictor variables and one outcome variable. The outcome variable will have the label __classe__. 
 
 ### Discard Useless Predictors 
 Not all of the `r sprintf("%d",dim(training)[2])` variables in the training dataset will be used as predictors for the prediction model.  Variables where the majority of its values are labeled as NA (missing) will be excluded. Also excluded, will be variables that are associated with the test subject's identity and variables related to date/time.
-```{r, tidy=TRUE}
+```{r, tidy=TRUE, cache=TRUE}
 # Define array with names of useless variables
 drops <- c( 
   "amplitude_pitch_arm",    "amplitude_pitch_belt",  "amplitude_pitch_dumbbell", 
@@ -91,7 +102,7 @@ By removing these variables, the number of possible predictors to sort through i
 
 ### Discard Zero or Near Zero Variance Predictors
 Create subset of training data that removes variables whose variance are small.
-```{r, tidy=TRUE}
+```{r zerovariance, tidy=TRUE, cache=TRUE}
 nzv <- nearZeroVar(training.filt[,!(names(training.filt) %in% c("classe"))]);
 training.nzv <- training.filt[, -nzv];
 dim(training.nzv);
@@ -101,7 +112,7 @@ rm(nzv);
 ### Discard Highly Correlated Predictors
 Reduce the level of correlation between the predictors. The code chunk below shows the effect of removing descriptors with absolute correlations above 0.75. 
 
-```{r , tidy=TRUE}
+```{r correlation, tidy=TRUE, cache=TRUE}
 corr <- cor(training.nzv[,!(names(training.nzv) %in% c("classe"))]);
 training.corr75 <- training.nzv[, -findCorrelation(corr, cutoff=0.75)];
 training.corr50 <- training.nzv[, -findCorrelation(corr, cutoff=0.50)];
@@ -112,43 +123,71 @@ rm(corr);
 The number of possible predictors are now at `r sprintf("%d",dim(training.filt)[2]-1)`.  This will be the final set of predictors used to build the eventual prediction model.
 
 ## Models
-_caret_ has a function called _train_ for use over 147 models with different resampling methods.  Using the training data to build 3 prediction models with the _train_ function. The performance of each will be evaluated.  Only 3 models were built because The computing/memory capacity of the system used to perform this analysis limits the scope of the models that can be reasonably calculated.  The 3 models built were:
+__caret__ has a function called __train__ for use over 147 models with different resampling methods.  Using the training data to build 3 prediction models with the __train__ function. The performance of each will be evaluated.  Only 3 models were built because The computing/memory capacity of the system used to perform this analysis limits the scope of the models that can be reasonably calculated.  The 3 models built were:
 
 1. Kth Nearest Neigbhor
 2. Neural Network
 3. Tree Partition
 
-```{r models, tidy=TRUE, echo=FALSE}
-#model1 <- train(classe~.,training.corr50,method="knn",  preProcess=c("center","scale")); 
-#model2 <- train(classe~.,training.corr75,method="nnet", preProcess=c("center","scale")); 
-#model3 <- train(classe~.,training.corr50,method="rpart",preProcess=c("center","scale")); 
+```{r models, tidy=TRUE, echo=FALSE, results='hide', cache=TRUE}
+model1 <- train(classe~.,training.corr50,method="knn",  preProcess=c("center","scale")); 
+model2 <- train(classe~.,training.corr75,method="nnet", preProcess=c("center","scale")); 
+model3 <- train(classe~.,training.corr75,method="rpart",preProcess=c("center","scale")); 
 ```
 
 ### Classification Performance
 Display the "confusion matrix" for each of the created models.  A “confusion matrix” is a cross–tabulation of the observed and predicted classes. The higher the sum of the values across the table's diagonal then the better that overall model's overall classification performance. 
 
-```{r classPerf, tidy=TRUE}
-#confusionMatrix(model1);
-#confusionMatrix(model2);
-#confusionMatrix(model3);
+```{r classPerf, tidy=FALSE}
+confusionMatrix(model1);  # kth Nearest Neighbors
+confusionMatrix(model2);  # Neural Network
+confusionMatrix(model3);  # Decision Trees
 ```
 
 ### Prediction on Testing Dataset
 Apply models against the testing dataset.
 
-```{r prediction, tidy=TRUE}
-#pred1 <- predict(model1,newdata=testing);
-#pred2 <- predict(model2,newdata=testing);
-#pred3 <- predict(model3,newdata=testing);
+```{r prediction, tidy=TRUE, cache=TRUE}
+p1 <- predict(model1,newdata=testing);
+p2 <- predict(model2,newdata=testing);
+p3 <- predict(model3,newdata=testing);
 ```
 
-## Cross-Validation
-K–Nearest Neighbors method incorporates croos validation over bootstrapped samples.
+The prediction results for the three models are shown in the table below.
+
+Case | Model#1 | Model#2 | Model#3
+---- | ------- | ------- | -------
+  1  |    B    |    B    |    C  
+  2  |    A    |    A    |    A 
+  3  |    A    |    B    |    C 
+  4  |    A    |    D    |    A 
+  5  |    A    |    B    |    C 
+  6  |    C    |    C    |    C 
+  7  |    D    |    D    |    C 
+  8  |    B    |    D    |    A 
+  9  |    A    |    A    |    A 
+ 10  |    A    |    A    |    C 
+ 11  |    B    |    C    |    B 
+ 12  |    C    |    C    |    C 
+ 13  |    B    |    B    |    C 
+ 14  |    A    |    A    |    A 
+ 15  |    E    |    E    |    C 
+ 16  |    E    |    E    |    A 
+ 17  |    A    |    A    |    A 
+ 18  |    B    |    B    |    B  
+ 19  |    B    |    B    |    A  
+ 20  |    B    |    E    |    C   
+
+## Conclusion
+The prediction model built using the K–Nearest Neighbors method had the best classification out of the 3 that were studied.
+
+### Cross-Validation
+K–Nearest Neighbors method incorporates cross validation over bootstrapped samples.
 
 ### Assignment Writeup
 Apply the best machine learning model built to each of the 20 test cases in the testing data set. For each test case create a text file with a single capital letter (A, B, C, D, or E) corresponding to the prediction for the corresponding problem in the test data set. 
 
-```{r conclusion, tidy=TRUE}
+```{r conclusion, tidy=TRUE, eval=FALSE}
 
 pml_write_files = function(x){
   n = length(x)
@@ -158,13 +197,15 @@ pml_write_files = function(x){
   }
 }
 
-#pml_write_files(as.character(pred1));
+pml_write_files(as.character(pred1));
 ```
 
+***
+
 ## Appendix
-Plot of 
+Plot of Tr
 ```{r appendix, tidy=TRUE}
-#fancyRpartPlot(model3$finalModel);
+fancyRpartPlot(model3$finalModel);
 ```
 
  
